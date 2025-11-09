@@ -110,13 +110,15 @@ io.on('connection', (socket) => {
     socket.on('locationUpdate', (data) => {
         const { busNumber, location, speed } = data;
         if (activeBuses[busNumber]) {
-            activeBuses[busNumber].locations.push(location);
-            activeBuses[busNumber].speed = speed;
+            // Store location with its specific speed
+            activeBuses[busNumber].locations.push({ location, speed });
+            activeBuses[busNumber].speed = speed; // Keep track of current speed
             io.emit('busLocationUpdate', {
                 busNumber,
                 location,
                 speed,
-                driverName: activeBuses[busNumber].driverName
+                driverName: activeBuses[busNumber].driverName,
+                destination: activeBuses[busNumber].destination
             });
         }
     });

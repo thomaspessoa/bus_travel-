@@ -5,7 +5,7 @@ const busMarkers = {};
 const activeBuses = {};
 const socket = io();
 
-socket.on('busLocationUpdate', ({ busNumber, location, speed, driverName }) => {
+socket.on('busLocationUpdate', ({ busNumber, location, speed, driverName, destination }) => {
     if (busMarkers[busNumber]) {
         busMarkers[busNumber].setLatLng([location.lat, location.lng]);
     } else {
@@ -18,7 +18,7 @@ socket.on('busLocationUpdate', ({ busNumber, location, speed, driverName }) => {
     busMarkers[busNumber].bindPopup(`Ônibus ${busNumber}<br>Motorista: ${driverName}<br>Velocidade: ${speed} km/h`);
 
     // Update active buses list
-    activeBuses[busNumber] = { driverName, speed };
+    activeBuses[busNumber] = { driverName, speed, destination };
     updateActiveBusesList();
 });
 
@@ -74,11 +74,33 @@ async function viewRoute(id) {
     if (routeMapInstance) {
         routeMapInstance.remove();
     }
-    routeMapInstance = L.map('route-map').setView([trip.locations[0].lat, trip.locations[0].lng], 13);
+
+    const latlngs = trip.locations.map(p => [p.location.lat, p.location.lng]);
+    const bounds = L.latLngBounds(latlngs);
+
+    routeMapInstance = L.map('route-map').fitBounds(bounds);
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(routeMapInstance);
 
-    const latlngs = trip.locations.map(loc => [loc.lat, loc.lng]);
     L.polyline(latlngs, { color: 'red' }).addTo(routeMapInstance);
+
+    let totalSpeed = 0;
+    trip.locations.forEach(p => {
+        totalSpeed += parseFloat(p.speed || 0);
+        L.circleMarker([p.location.lat, p.location.lng], {
+            radius: 5,
+            color: 'blue',
+            fillOpacity: 0.8
+        }).addTo(routeMapInstance).bindTooltip(`Velocidade: ${p.speed} km/h`);
+    });
+
+    const averageSpeed = (totalSpeed / trip.locations.length).toFixed(2);
+    const averageSpeedControl = L.control({ position: 'topright' });
+    averageSpeedControl.onAdd = function(map) {
+        const div = L.DomUtil.create('div', 'info legend');
+        div.innerHTML = `<h4>Velocidade Média</h4>${averageSpeed} km/h`;
+        return div;
+    };
+    averageSpeedControl.addTo(routeMapInstance);
 }
 
 document.getElementById('close-modal').addEventListener('click', () => {
@@ -118,6 +140,7 @@ function updateActiveBusesList() {
         const listItem = document.createElement('li');
         listItem.innerHTML = `<strong>Ônibus ${busNumber}</strong><br>
                               Motorista: ${bus.driverName}<br>
+                              Destino: ${bus.destination}<br>
                               Velocidade: ${bus.speed} km/h`;
         list.appendChild(listItem);
     }

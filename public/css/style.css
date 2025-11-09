@@ -172,6 +172,11 @@ button:hover {
     outline: none;
 }
 
+/* Hide the entire routing instructions panel */
+.leaflet-routing-container {
+    display: none !important;
+}
+
 @media (max-width: 768px) {
     .main-content {
         flex-direction: column;
