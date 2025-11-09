@@ -4,8 +4,9 @@ L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(driverMa
 const socket = io();
 let currentTrip = null;
 let simulationInterval = null;
-let currentRoute = null;
-let initialMarker = null;
+let routingControl = null; // To store the route line
+let simulationMarker = null; // To store the moving bus marker
+let initialMarker = null; // To store the initial "You are here" marker
 
 // Function to simulate trip progress
 function simulateTrip(startCoords, endCoords, busNumber) {
@@ -28,10 +29,10 @@ function simulateTrip(startCoords, endCoords, busNumber) {
         socket.emit('locationUpdate', { busNumber, location, speed });
 
         // Update marker on driver's map
-        if (currentRoute) {
-            driverMap.removeLayer(currentRoute);
+        if (simulationMarker) {
+            driverMap.removeLayer(simulationMarker);
         }
-        currentRoute = L.marker([lat, lng]).addTo(driverMap)
+        simulationMarker = L.marker([lat, lng]).addTo(driverMap)
             .bindPopup(`Velocidade: ${speed} km/h`)
             .openPopup();
 
@@ -86,12 +87,12 @@ document.getElementById('trip-form').addEventListener('submit', async (e) => {
         const startCoords = [pos.coords.latitude, pos.coords.longitude];
 
         // Clear previous routing if it exists
-        if (currentRoute) {
-            driverMap.removeControl(currentRoute);
+        if (routingControl) {
+            driverMap.removeControl(routingControl);
         }
 
         // Display route on driver's map
-        currentRoute = L.Routing.control({
+        routingControl = L.Routing.control({
             waypoints: [
                 L.latLng(startCoords[0], startCoords[1]),
                 L.latLng(destCoords[0], destCoords[1])
@@ -101,7 +102,12 @@ document.getElementById('trip-form').addEventListener('submit', async (e) => {
             draggableWaypoints: false,
             fitSelectedRoutes: true,
             showAlternatives: false,
-            itinerary: L.DomUtil.create('div', 'hidden')
+            // Hide the itinerary panel
+            itinerary: L.DomUtil.create('div', 'hidden'),
+            // Hide the route line initially, if desired, or style it
+            lineOptions: {
+                styles: [{ color: 'red', opacity: 0.8, weight: 6 }]
+            }
         }).addTo(driverMap);
 
         // Start simulation
@@ -122,11 +128,28 @@ document.getElementById('end-trip').addEventListener('click', async () => {
     document.getElementById('trip-form').style.display = 'block';
     document.getElementById('trip-controls').style.display = 'none';
     document.getElementById('trip-form').reset();
+    document.getElementById('observations').value = '';
+
+    // Clear map elements
+    if (routingControl) {
+        driverMap.removeControl(routingControl);
+        routingControl = null;
+    }
+    if (simulationMarker) {
+        driverMap.removeLayer(simulationMarker);
+        simulationMarker = null;
+    }
+
     currentTrip = null;
     simulationInterval = null;
-    if (currentRoute) {
-       driverMap.removeControl(currentRoute);
-       currentRoute = null;
+
+    // Re-enable initial location marker
+    if (navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition(pos => {
+            driverMap.setView([pos.coords.latitude, pos.coords.longitude]);
+            initialMarker = L.marker([pos.coords.latitude, pos.coords.longitude]).addTo(driverMap).bindPopup("Você está aqui").openPopup();
+        });
     }
+
     alert('Viagem encerrada! Você pode iniciar uma nova viagem.');
 });
