@@ -67,6 +67,12 @@ let routeMapInstance = null;
 async function viewRoute(id) {
     const response = await fetch(`/trips/${id}`);
     const trip = await response.json();
+
+    if (!trip.locations || trip.locations.length === 0) {
+        alert("Esta viagem não possui um trajeto registrado.");
+        return;
+    }
+
     const modal = document.getElementById('route-modal');
     modal.style.display = 'flex';
 
@@ -93,20 +99,32 @@ async function viewRoute(id) {
         }).addTo(routeMapInstance).bindTooltip(`Velocidade: ${p.speed} km/h`);
     });
 
-    const averageSpeed = (totalSpeed / trip.locations.length).toFixed(2);
-    const averageSpeedControl = L.control({ position: 'topright' });
-    averageSpeedControl.onAdd = function(map) {
-        const div = L.DomUtil.create('div', 'info legend');
-        div.innerHTML = `<h4>Velocidade Média</h4>${averageSpeed} km/h`;
-        return div;
-    };
-    averageSpeedControl.addTo(routeMapInstance);
+    const averageSpeed = trip.locations.length > 0 ? (totalSpeed / trip.locations.length).toFixed(2) : 0;
+
+    // Calculate trip duration
+    let durationString = "N/A";
+    if (trip.startTime && trip.endTime) {
+        const start = new Date(`1970-01-01T${trip.startTime}`);
+        const end = new Date(`1970-01-01T${trip.endTime}`);
+        const diffMs = end - start;
+
+        if (!isNaN(diffMs) && diffMs > 0) {
+            const hours = Math.floor(diffMs / 3600000);
+            const minutes = Math.floor((diffMs % 3600000) / 60000);
+            const seconds = Math.floor(((diffMs % 360000) % 60000) / 1000);
+            durationString = `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+        }
+    }
+
+    const detailsDiv = document.getElementById('route-details');
+    detailsDiv.innerHTML = `<strong>Velocidade Média:</strong> ${averageSpeed} km/h <br> <strong>Duração da Viagem:</strong> ${durationString}`;
 }
 
 document.getElementById('close-modal').addEventListener('click', () => {
-    document.getElementById('route-modal').style.display = 'none';
+    const modal = document.getElementById('route-modal');
+    modal.style.display = 'none';
     if (routeMapInstance) {
-        routeMapInstance.remove();
+        routeMapInstance.remove(); // Destrói a instância do mapa para evitar erros
         routeMapInstance = null;
     }
 });
