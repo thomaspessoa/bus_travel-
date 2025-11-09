@@ -14,9 +14,10 @@ if (navigator.geolocation) {
 
 document.getElementById('trip-form').addEventListener('submit', async (e) => {
     e.preventDefault();
+    const now = new Date();
     const tripData = {
-        date: document.getElementById('date').value,
-        time: document.getElementById('time').value,
+        date: now.toLocaleDateString('pt-BR'),
+        time: now.toLocaleTimeString('pt-BR'),
         driverName: document.getElementById('driver-name').value,
         destination: document.getElementById('destination').value,
         busNumber: document.getElementById('bus-number').value,

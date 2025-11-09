@@ -13,15 +13,13 @@
         <div id="driver-map"></div>
         <div class="trip-form-container">
             <form id="trip-form">
-                <input type="date" id="date" required>
-                <input type="time" id="time" required>
                 <input type="text" id="driver-name" placeholder="Nome do Motorista" required>
                 <input type="text" id="destination" placeholder="Destino" required>
                 <input type="text" id="bus-number" placeholder="Número do ônibus" required>
                 <button type="submit">Iniciar Viagem</button>
             </form>
             <div id="trip-controls" style="display: none;">
-                <textarea id="observations" placeholder="Observações"></textarea>
+                <textarea id="observations" class="fancy-textarea" placeholder="Adicione suas observações aqui..."></textarea>
                 <button id="end-trip">Encerrar Viagem</button>
             </div>
         </div>

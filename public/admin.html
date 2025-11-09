@@ -11,10 +11,14 @@
     <div class="container">
         <h1>Painel do Administrador</h1>
         <div id="map"></div>
-        <div class="search-container">
-            <input type="text" id="search" placeholder="Buscar ônibus...">
+        <div class="controls-container">
+            <div class="search-container">
+                <input type="text" id="search-input" placeholder="Buscar ônibus...">
+                <button id="search-btn">Buscar</button>
+            </div>
+            <button id="toggle-history-btn">Mostrar Histórico</button>
         </div>
-        <div class="history-container">
+        <div class="history-container" style="display: none;">
             <h2>Histórico de Viagens</h2>
             <input type="date" id="date-filter">
             <table>

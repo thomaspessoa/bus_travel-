@@ -77,12 +77,21 @@ document.getElementById('date-filter').addEventListener('change', (e) => {
     fetchTrips(e.target.value);
 });
 
-document.getElementById('search').addEventListener('input', (e) => {
-    const searchTerm = e.target.value;
+document.getElementById('search-btn').addEventListener('click', () => {
+    const searchTerm = document.getElementById('search-input').value;
     if (busMarkers[searchTerm]) {
         map.setView(busMarkers[searchTerm].getLatLng(), 15);
         busMarkers[searchTerm].openPopup();
+    } else {
+        alert('Ônibus não encontrado ou não está em viagem.');
     }
+});
+
+document.getElementById('toggle-history-btn').addEventListener('click', (e) => {
+    const historyContainer = document.querySelector('.history-container');
+    const isVisible = historyContainer.style.display !== 'none';
+    historyContainer.style.display = isVisible ? 'none' : 'block';
+    e.target.textContent = isVisible ? 'Mostrar Histórico' : 'Ocultar Histórico';
 });
 
 
