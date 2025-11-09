@@ -1,0 +1,89 @@
+const map = L.map('map').setView([0, 0], 2);
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+
+const busMarkers = {};
+const socket = io();
+
+socket.on('busLocationUpdate', ({ busNumber, location, speed }) => {
+    if (busMarkers[busNumber]) {
+        busMarkers[busNumber].setLatLng([location.lat, location.lng]);
+    } else {
+        const busIcon = L.divIcon({
+            html: `<span>${busNumber}</span><img src="https://img.icons8.com/color/48/000000/bus.png" alt="bus"/>`,
+            className: 'bus-icon'
+        });
+        busMarkers[busNumber] = L.marker([location.lat, location.lng], { icon: busIcon }).addTo(map);
+    }
+    busMarkers[busNumber].bindPopup(`Ônibus ${busNumber}<br>Velocidade: ${speed} km/h`).openPopup();
+});
+
+socket.on('tripEnded', (busNumber) => {
+    if (busMarkers[busNumber]) {
+        map.removeLayer(busMarkers[busNumber]);
+        delete busMarkers[busNumber];
+    }
+    fetchTrips();
+});
+
+
+async function fetchTrips(date = '') {
+    const url = date ? `/trips?date=${date}` : '/trips';
+    const response = await fetch(url);
+    const trips = await response.json();
+    const tableBody = document.getElementById('history-table');
+    tableBody.innerHTML = '';
+    trips.forEach(trip => {
+        const row = `<tr>
+            <td>${trip.date}</td>
+            <td>${trip.driverName}</td>
+            <td>${trip.busNumber}</td>
+            <td>${trip.startTime}</td>
+            <td>${trip.endTime || ''}</td>
+            <td>${trip.destination}</td>
+            <td>${trip.observations || ''}</td>
+            <td>
+                <button onclick="viewRoute(${trip.id})">Ver Trajeto</button>
+                <button onclick="deleteTrip(${trip.id})">Excluir</button>
+            </td>
+        </tr>`;
+        tableBody.innerHTML += row;
+    });
+}
+
+async function deleteTrip(id) {
+    await fetch(`/trips/${id}`, { method: 'DELETE' });
+    fetchTrips();
+}
+
+async function viewRoute(id) {
+    const response = await fetch(`/trips/${id}`);
+    const trip = await response.json();
+    const modal = document.getElementById('route-modal');
+    modal.style.display = 'flex';
+
+    const routeMap = L.map('route-map').setView([trip.locations[0].lat, trip.locations[0].lng], 13);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(routeMap);
+
+    const latlngs = trip.locations.map(loc => [loc.lat, loc.lng]);
+    L.polyline(latlngs, { color: 'red' }).addTo(routeMap);
+}
+
+document.getElementById('close-modal').addEventListener('click', () => {
+    document.getElementById('route-modal').style.display = 'none';
+    document.getElementById('route-map').innerHTML = '';
+});
+
+document.getElementById('date-filter').addEventListener('change', (e) => {
+    fetchTrips(e.target.value);
+});
+
+document.getElementById('search').addEventListener('input', (e) => {
+    const searchTerm = e.target.value;
+    if (busMarkers[searchTerm]) {
+        map.setView(busMarkers[searchTerm].getLatLng(), 15);
+        busMarkers[searchTerm].openPopup();
+    }
+});
+
+
+fetchTrips();

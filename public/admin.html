@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Painel do Administrador - Rizzatti</title>
+    <link rel="stylesheet" href="css/style.css">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css" />
+</head>
+<body>
+    <div class="container">
+        <h1>Painel do Administrador</h1>
+        <div id="map"></div>
+        <div class="search-container">
+            <input type="text" id="search" placeholder="Buscar ônibus...">
+        </div>
+        <div class="history-container">
+            <h2>Histórico de Viagens</h2>
+            <input type="date" id="date-filter">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Data</th>
+                        <th>Motorista</th>
+                        <th>Ônibus</th>
+                        <th>Início</th>
+                        <th>Fim</th>
+                        <th>Destino</th>
+                        <th>Observações</th>
+                        <th>Ações</th>
+                    </tr>
+                </thead>
+                <tbody id="history-table">
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <div id="route-modal" style="display: none;">
+        <div id="route-map"></div>
+        <button id="close-modal">Fechar</button>
+    </div>
+
+    <script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
+    <script src="/socket.io/socket.io.js"></script>
+    <script src="js/admin.js"></script>
+</body>
+</html>

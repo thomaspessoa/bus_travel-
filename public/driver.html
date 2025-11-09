@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Painel do Motorista - Rizzatti</title>
+    <link rel="stylesheet" href="css/style.css">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css" />
+</head>
+<body>
+    <div class="container">
+        <h1>Painel do Motorista</h1>
+        <div id="driver-map"></div>
+        <div class="trip-form-container">
+            <form id="trip-form">
+                <input type="date" id="date" required>
+                <input type="time" id="time" required>
+                <input type="text" id="driver-name" placeholder="Nome do Motorista" required>
+                <input type="text" id="destination" placeholder="Destino" required>
+                <input type="text" id="bus-number" placeholder="Número do ônibus" required>
+                <button type="submit">Iniciar Viagem</button>
+            </form>
+            <div id="trip-controls" style="display: none;">
+                <textarea id="observations" placeholder="Observações"></textarea>
+                <button id="end-trip">Encerrar Viagem</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
+    <script src="https://unpkg.com/leaflet-routing-machine@3.2.12/dist/leaflet-routing-machine.js"></script>
+    <script src="/socket.io/socket.io.js"></script>
+    <script src="js/driver.js"></script>
+</body>
+</html>
