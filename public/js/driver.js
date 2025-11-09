@@ -3,8 +3,9 @@ L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(driverMa
 
 const socket = io();
 let currentTrip = null;
-let simulationInterval = null; // Changed from watchId to simulationInterval
+let simulationInterval = null;
 let currentRoute = null;
+let initialMarker = null;
 
 // Function to simulate trip progress
 function simulateTrip(startCoords, endCoords, busNumber) {
@@ -42,7 +43,7 @@ function simulateTrip(startCoords, endCoords, busNumber) {
 if (navigator.geolocation) {
     navigator.geolocation.getCurrentPosition(pos => {
         driverMap.setView([pos.coords.latitude, pos.coords.longitude]);
-        L.marker([pos.coords.latitude, pos.coords.longitude]).addTo(driverMap).bindPopup("Você está aqui").openPopup();
+        initialMarker = L.marker([pos.coords.latitude, pos.coords.longitude]).addTo(driverMap).bindPopup("Você está aqui").openPopup();
     });
 }
 
@@ -63,6 +64,11 @@ document.getElementById('trip-form').addEventListener('submit', async (e) => {
         body: JSON.stringify(tripData)
     });
     currentTrip = await response.json();
+
+    if (initialMarker) {
+        driverMap.removeLayer(initialMarker);
+        initialMarker = null;
+    }
 
     document.getElementById('trip-form').style.display = 'none';
     document.getElementById('trip-controls').style.display = 'block';

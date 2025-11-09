@@ -14,7 +14,11 @@
         <div class="trip-form-container">
             <form id="trip-form">
                 <input type="text" id="driver-name" placeholder="Nome do Motorista" required>
-                <input type="text" id="destination" placeholder="Destino" required>
+                <select id="destination" required>
+                    <option value="" disabled selected>Selecione o Destino</option>
+                    <option value="Santa Maria">Santa Maria</option>
+                    <option value="Recanto Maestro">Recanto Maestro</option>
+                </select>
                 <input type="text" id="bus-number" placeholder="Número do ônibus" required>
                 <button type="submit">Iniciar Viagem</button>
             </form>
