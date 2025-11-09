@@ -2,9 +2,10 @@ const map = L.map('map').setView([0, 0], 2);
 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
 
 const busMarkers = {};
+const activeBuses = {};
 const socket = io();
 
-socket.on('busLocationUpdate', ({ busNumber, location, speed }) => {
+socket.on('busLocationUpdate', ({ busNumber, location, speed, driverName }) => {
     if (busMarkers[busNumber]) {
         busMarkers[busNumber].setLatLng([location.lat, location.lng]);
     } else {
@@ -14,10 +15,17 @@ socket.on('busLocationUpdate', ({ busNumber, location, speed }) => {
         });
         busMarkers[busNumber] = L.marker([location.lat, location.lng], { icon: busIcon }).addTo(map);
     }
-    busMarkers[busNumber].bindPopup(`Ônibus ${busNumber}<br>Velocidade: ${speed} km/h`).openPopup();
+    busMarkers[busNumber].bindPopup(`Ônibus ${busNumber}<br>Motorista: ${driverName}<br>Velocidade: ${speed} km/h`);
+
+    // Update active buses list
+    activeBuses[busNumber] = { driverName, speed };
+    updateActiveBusesList();
 });
 
 socket.on('tripEnded', (busNumber) => {
+    // Remove from active buses list
+    delete activeBuses[busNumber];
+    updateActiveBusesList();
     if (busMarkers[busNumber]) {
         map.removeLayer(busMarkers[busNumber]);
         delete busMarkers[busNumber];
@@ -55,22 +63,30 @@ async function deleteTrip(id) {
     fetchTrips();
 }
 
+let routeMapInstance = null;
 async function viewRoute(id) {
     const response = await fetch(`/trips/${id}`);
     const trip = await response.json();
     const modal = document.getElementById('route-modal');
     modal.style.display = 'flex';
 
-    const routeMap = L.map('route-map').setView([trip.locations[0].lat, trip.locations[0].lng], 13);
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(routeMap);
+    // Ensure map is re-initialized correctly
+    if (routeMapInstance) {
+        routeMapInstance.remove();
+    }
+    routeMapInstance = L.map('route-map').setView([trip.locations[0].lat, trip.locations[0].lng], 13);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(routeMapInstance);
 
     const latlngs = trip.locations.map(loc => [loc.lat, loc.lng]);
-    L.polyline(latlngs, { color: 'red' }).addTo(routeMap);
+    L.polyline(latlngs, { color: 'red' }).addTo(routeMapInstance);
 }
 
 document.getElementById('close-modal').addEventListener('click', () => {
     document.getElementById('route-modal').style.display = 'none';
-    document.getElementById('route-map').innerHTML = '';
+    if (routeMapInstance) {
+        routeMapInstance.remove();
+        routeMapInstance = null;
+    }
 });
 
 document.getElementById('date-filter').addEventListener('change', (e) => {
@@ -93,6 +109,19 @@ document.getElementById('toggle-history-btn').addEventListener('click', (e) => {
     historyContainer.style.display = isVisible ? 'none' : 'block';
     e.target.textContent = isVisible ? 'Mostrar Histórico' : 'Ocultar Histórico';
 });
+
+function updateActiveBusesList() {
+    const list = document.getElementById('active-buses-list');
+    list.innerHTML = '';
+    for (const busNumber in activeBuses) {
+        const bus = activeBuses[busNumber];
+        const listItem = document.createElement('li');
+        listItem.innerHTML = `<strong>Ônibus ${busNumber}</strong><br>
+                              Motorista: ${bus.driverName}<br>
+                              Velocidade: ${bus.speed} km/h`;
+        list.appendChild(listItem);
+    }
+}
 
 
 fetchTrips();

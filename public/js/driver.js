@@ -44,7 +44,13 @@ document.getElementById('trip-form').addEventListener('submit', async (e) => {
             waypoints: [
                 L.latLng(pos.coords.latitude, pos.coords.longitude),
                 L.latLng(destCoords[0], destCoords[1])
-            ]
+            ],
+            routeWhileDragging: false,
+            addWaypoints: false,
+            draggableWaypoints: false,
+            fitSelectedRoutes: true,
+            showAlternatives: false,
+            itinerary: L.DomUtil.create('div', 'hidden') // This hides the itinerary
         }).addTo(driverMap);
     });
 

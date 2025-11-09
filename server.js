@@ -112,7 +112,12 @@ io.on('connection', (socket) => {
         if (activeBuses[busNumber]) {
             activeBuses[busNumber].locations.push(location);
             activeBuses[busNumber].speed = speed;
-            io.emit('busLocationUpdate', { busNumber, location, speed });
+            io.emit('busLocationUpdate', {
+                busNumber,
+                location,
+                speed,
+                driverName: activeBuses[busNumber].driverName
+            });
         }
     });
 
