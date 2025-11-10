@@ -189,6 +189,15 @@ button:hover:not(:disabled) {
     display: none !important;
 }
 
+.history-container {
+    padding: 20px;
+    background-color: rgba(255, 255, 255, 0.9);
+    border-radius: 10px;
+    box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+    margin-top: 20px;
+    display: none; /* Começa oculto */
+}
+
 /* --- Responsive Design --- */
 @media (max-width: 992px) {
     .main-content {
@@ -219,10 +228,62 @@ button:hover:not(:disabled) {
     #search-input {
         max-width: none;
     }
-    th, td {
-        padding: 8px;
-    }
     h1 {
         font-size: 1.5rem;
+    }
+
+    /* Responsive History Table */
+    .history-container table,
+    .history-container thead,
+    .history-container tbody,
+    .history-container th,
+    .history-container td,
+    .history-container tr {
+        display: block;
+    }
+
+    .history-container thead tr {
+        position: absolute;
+        top: -9999px;
+        left: -9999px;
+    }
+
+    .history-container tr {
+        border: 1px solid #ccc;
+        border-radius: 8px;
+        margin-bottom: 10px;
+        padding: 10px;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+    }
+
+    .history-container td {
+        border: none;
+        position: relative;
+        padding-left: 50%;
+        text-align: right;
+        white-space: normal;
+    }
+
+    .history-container td::before {
+        content: attr(data-label);
+        position: absolute;
+        left: 10px;
+        width: calc(50% - 20px);
+        padding-right: 10px;
+        font-weight: bold;
+        text-align: left;
+        white-space: nowrap;
+    }
+
+    .history-container td[data-label="Ações"] {
+        display: flex;
+        flex-direction: column;
+        align-items: flex-end;
+        gap: 5px;
+    }
+
+    .history-container td[data-label="Ações"] button {
+        width: 100%;
+        box-sizing: border-box;
     }
 }

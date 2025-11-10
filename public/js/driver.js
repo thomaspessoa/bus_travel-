@@ -12,14 +12,25 @@ let realTimeMarker = null;
 let initialMarker = null;
 let lastKnownPosition = null;
 
-startTripBtn.disabled = true;
-locationStatus.textContent = 'Obtendo localização inicial...';
+const formElements = {
+    driverName: document.getElementById('driver-name'),
+    destination: document.getElementById('destination'),
+    busNumber: document.getElementById('bus-number'),
+};
+
+function setFormDisabled(disabled) {
+    startTripBtn.disabled = disabled;
+    Object.values(formElements).forEach(el => el.disabled = disabled);
+}
+
+locationStatus.textContent = 'Preencha os dados e clique em "Iniciar Viagem" para permitir a localização.';
+setFormDisabled(false); // Enable form by default
 
 function handleLocationError(error) {
     let message = 'Ocorreu um erro desconhecido.';
     switch(error.code) {
         case error.PERMISSION_DENIED:
-            message = "Você negou o acesso à localização.";
+            message = "Você negou o acesso à localização. Por favor, habilite nas configurações do seu navegador.";
             break;
         case error.POSITION_UNAVAILABLE:
             message = "As informações de localização não estão disponíveis.";
@@ -30,6 +41,7 @@ function handleLocationError(error) {
     }
     locationStatus.textContent = message;
     console.error("Geolocation error:", message);
+    setFormDisabled(false);
 }
 
 function startRealTimeTracking(busNumber) {
@@ -55,31 +67,42 @@ function startRealTimeTracking(busNumber) {
     );
 }
 
-if ('geolocation' in navigator) {
-    navigator.geolocation.getCurrentPosition(
-        (pos) => {
-            lastKnownPosition = pos;
-            driverMap.setView([pos.coords.latitude, pos.coords.longitude]);
-            initialMarker = L.marker([pos.coords.latitude, pos.coords.longitude]).addTo(driverMap).bindPopup("Você está aqui").openPopup();
-            locationStatus.textContent = 'Localização obtida com sucesso!';
-            startTripBtn.disabled = false;
-        },
-        handleLocationError
-    );
-} else {
-    locationStatus.textContent = 'Geolocalização não é suportada neste navegador.';
-}
 
 document.getElementById('trip-form').addEventListener('submit', (e) => {
     e.preventDefault();
-    if (!lastKnownPosition) {
-        locationStatus.textContent = 'Aguardando a obtenção da sua localização inicial...';
+
+    if (!('geolocation' in navigator)) {
+        locationStatus.textContent = 'Geolocalização não é suportada neste navegador.';
         return;
     }
-    startTrip();
+
+    locationStatus.textContent = 'Solicitando permissão de localização...';
+    setFormDisabled(true);
+
+    navigator.geolocation.getCurrentPosition(
+        (pos) => {
+            lastKnownPosition = pos;
+            locationStatus.textContent = 'Localização obtida! Iniciando a viagem...';
+            driverMap.setView([pos.coords.latitude, pos.coords.longitude], 15);
+            if (initialMarker) driverMap.removeLayer(initialMarker);
+            initialMarker = L.marker([pos.coords.latitude, pos.coords.longitude]).addTo(driverMap).bindPopup("Ponto de Partida").openPopup();
+
+            startTrip();
+        },
+        (error) => {
+            handleLocationError(error);
+            setFormDisabled(false);
+        },
+        { enableHighAccuracy: true }
+    );
 });
 
 async function startTrip() {
+    if (!lastKnownPosition) {
+        locationStatus.textContent = 'Não foi possível obter a localização para iniciar a viagem.';
+        setFormDisabled(false);
+        return;
+    }
     const startCoords = [lastKnownPosition.coords.latitude, lastKnownPosition.coords.longitude];
     const tripData = {
         date: new Date().toLocaleDateString('pt-BR'),

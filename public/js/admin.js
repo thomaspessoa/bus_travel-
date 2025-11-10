@@ -42,14 +42,14 @@ async function fetchTrips(date = '') {
     tableBody.innerHTML = '';
     trips.forEach(trip => {
         const row = `<tr>
-            <td>${trip.date}</td>
-            <td>${trip.driverName}</td>
-            <td>${trip.busNumber}</td>
-            <td>${trip.startTime}</td>
-            <td>${trip.endTime || ''}</td>
-            <td>${trip.destination}</td>
-            <td>${trip.observations || ''}</td>
-            <td>
+            <td data-label="Data">${trip.date}</td>
+            <td data-label="Motorista">${trip.driverName}</td>
+            <td data-label="Ônibus">${trip.busNumber}</td>
+            <td data-label="Início">${trip.startTime}</td>
+            <td data-label="Fim">${trip.endTime || ''}</td>
+            <td data-label="Destino">${trip.destination}</td>
+            <td data-label="Observações">${trip.observations || ''}</td>
+            <td data-label="Ações">
                 <button onclick="viewRoute(${trip.id})">Ver Trajeto</button>
                 <button onclick="deleteTrip(${trip.id})">Excluir</button>
             </td>
