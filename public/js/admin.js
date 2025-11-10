@@ -17,13 +17,11 @@ socket.on('busLocationUpdate', ({ busNumber, location, speed, driverName, destin
     }
     busMarkers[busNumber].bindPopup(`Ônibus ${busNumber}<br>Motorista: ${driverName}<br>Velocidade: ${speed} km/h`);
 
-    // Update active buses list
     activeBuses[busNumber] = { driverName, speed, destination };
     updateActiveBusesList();
 });
 
 socket.on('tripEnded', (busNumber) => {
-    // Remove from active buses list
     delete activeBuses[busNumber];
     updateActiveBusesList();
     if (busMarkers[busNumber]) {
@@ -35,6 +33,8 @@ socket.on('tripEnded', (busNumber) => {
 
 
 async function fetchTrips(date = '') {
+    await new Promise(resolve => setTimeout(resolve, 500));
+
     const url = date ? `/trips?date=${date}` : '/trips';
     const response = await fetch(url);
     const trips = await response.json();
@@ -64,19 +64,25 @@ async function deleteTrip(id) {
 }
 
 let routeMapInstance = null;
-async function viewRoute(id) {
+
+async function viewRoute(id, retries = 3) {
+    if (retries <= 0) {
+        alert("Não foi possível carregar o trajeto desta viagem.");
+        return;
+    }
+
     const response = await fetch(`/trips/${id}`);
     const trip = await response.json();
 
     if (!trip.locations || trip.locations.length === 0) {
-        alert("Esta viagem não possui um trajeto registrado.");
-        return;
+        // Wait and retry
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        return viewRoute(id, retries - 1);
     }
 
     const modal = document.getElementById('route-modal');
     modal.style.display = 'flex';
 
-    // Ensure map is re-initialized correctly
     if (routeMapInstance) {
         routeMapInstance.remove();
     }
@@ -93,15 +99,12 @@ async function viewRoute(id) {
     trip.locations.forEach(p => {
         totalSpeed += parseFloat(p.speed || 0);
         L.circleMarker([p.location.lat, p.location.lng], {
-            radius: 5,
-            color: 'blue',
-            fillOpacity: 0.8
+            radius: 5, color: 'blue', fillOpacity: 0.8
         }).addTo(routeMapInstance).bindTooltip(`Velocidade: ${p.speed} km/h`);
     });
 
     const averageSpeed = trip.locations.length > 0 ? (totalSpeed / trip.locations.length).toFixed(2) : 0;
 
-    // Calculate trip duration
     let durationString = "N/A";
     if (trip.startTime && trip.endTime) {
         const start = new Date(`1970-01-01T${trip.startTime}`);
@@ -124,7 +127,7 @@ document.getElementById('close-modal').addEventListener('click', () => {
     const modal = document.getElementById('route-modal');
     modal.style.display = 'none';
     if (routeMapInstance) {
-        routeMapInstance.remove(); // Destrói a instância do mapa para evitar erros
+        routeMapInstance.remove();
         routeMapInstance = null;
     }
 });

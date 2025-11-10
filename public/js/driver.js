@@ -2,121 +2,137 @@ const driverMap = L.map('driver-map').setView([0, 0], 13);
 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(driverMap);
 
 const socket = io();
+const locationStatus = document.getElementById('location-status');
+const startTripBtn = document.getElementById('start-trip-btn');
+
 let currentTrip = null;
-let simulationInterval = null;
-let routingControl = null; // To store the route line
-let simulationMarker = null; // To store the moving bus marker
-let initialMarker = null; // To store the initial "You are here" marker
+let watchId = null;
+let routingControl = null;
+let realTimeMarker = null;
+let initialMarker = null;
+let lastKnownPosition = null;
 
-// Function to simulate trip progress
-function simulateTrip(startCoords, endCoords, busNumber) {
-    let currentStep = 0;
-    const totalSteps = 50; // Simulate 50 steps for the trip
+startTripBtn.disabled = true;
+locationStatus.textContent = 'Obtendo localização inicial...';
 
-    simulationInterval = setInterval(() => {
-        if (currentStep > totalSteps) {
-            // End of simulation, but don't clear here. Let the 'end-trip' button handle it.
-            return;
-        }
-
-        // Simple linear interpolation
-        const lat = startCoords[0] + (endCoords[0] - startCoords[0]) * (currentStep / totalSteps);
-        const lng = startCoords[1] + (endCoords[1] - startCoords[1]) * (currentStep / totalSteps);
-
-        const location = { lat, lng };
-        const speed = (Math.random() * 20 + 40).toFixed(2); // Random speed between 40-60 km/h
-
-        socket.emit('locationUpdate', { busNumber, location, speed });
-
-        // Update marker on driver's map
-        if (simulationMarker) {
-            driverMap.removeLayer(simulationMarker);
-        }
-        simulationMarker = L.marker([lat, lng]).addTo(driverMap)
-            .bindPopup(`Velocidade: ${speed} km/h`)
-            .openPopup();
-
-        currentStep++;
-    }, 2000); // Send update every 2 seconds
+function handleLocationError(error) {
+    let message = 'Ocorreu um erro desconhecido.';
+    switch(error.code) {
+        case error.PERMISSION_DENIED:
+            message = "Você negou o acesso à localização.";
+            break;
+        case error.POSITION_UNAVAILABLE:
+            message = "As informações de localização não estão disponíveis.";
+            break;
+        case error.TIMEOUT:
+            message = "A solicitação para obter a localização expirou.";
+            break;
+    }
+    locationStatus.textContent = message;
+    console.error("Geolocation error:", message);
 }
 
+function startRealTimeTracking(busNumber) {
+    if (watchId) navigator.geolocation.clearWatch(watchId);
 
-if (navigator.geolocation) {
-    navigator.geolocation.getCurrentPosition(pos => {
-        driverMap.setView([pos.coords.latitude, pos.coords.longitude]);
-        initialMarker = L.marker([pos.coords.latitude, pos.coords.longitude]).addTo(driverMap).bindPopup("Você está aqui").openPopup();
-    });
+    watchId = navigator.geolocation.watchPosition(
+        (pos) => {
+            const { latitude, longitude, speed } = pos.coords;
+            const location = { lat: latitude, lng: longitude };
+            const speedKmh = speed ? (speed * 3.6).toFixed(2) : 0;
+
+            socket.emit('locationUpdate', { busNumber, location, speed: speedKmh });
+
+            if (realTimeMarker) realTimeMarker.setLatLng([latitude, longitude]);
+            else {
+                realTimeMarker = L.marker([latitude, longitude]).addTo(driverMap);
+            }
+            realTimeMarker.bindPopup(`Velocidade: ${speedKmh} km/h`).openPopup();
+            locationStatus.textContent = 'Rastreamento em tempo real ativo.';
+        },
+        handleLocationError,
+        { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+    );
 }
 
-document.getElementById('trip-form').addEventListener('submit', async (e) => {
+if ('geolocation' in navigator) {
+    navigator.geolocation.getCurrentPosition(
+        (pos) => {
+            lastKnownPosition = pos;
+            driverMap.setView([pos.coords.latitude, pos.coords.longitude]);
+            initialMarker = L.marker([pos.coords.latitude, pos.coords.longitude]).addTo(driverMap).bindPopup("Você está aqui").openPopup();
+            locationStatus.textContent = 'Localização obtida com sucesso!';
+            startTripBtn.disabled = false;
+        },
+        handleLocationError
+    );
+} else {
+    locationStatus.textContent = 'Geolocalização não é suportada neste navegador.';
+}
+
+document.getElementById('trip-form').addEventListener('submit', (e) => {
     e.preventDefault();
-    const now = new Date();
+    if (!lastKnownPosition) {
+        locationStatus.textContent = 'Aguardando a obtenção da sua localização inicial...';
+        return;
+    }
+    startTrip();
+});
+
+async function startTrip() {
+    const startCoords = [lastKnownPosition.coords.latitude, lastKnownPosition.coords.longitude];
     const tripData = {
-        date: now.toLocaleDateString('pt-BR'),
-        time: now.toLocaleTimeString('pt-BR'),
+        date: new Date().toLocaleDateString('pt-BR'),
+        time: new Date().toLocaleTimeString('pt-BR'),
         driverName: document.getElementById('driver-name').value,
         destination: document.getElementById('destination').value,
         busNumber: document.getElementById('bus-number').value,
+        initialLocation: {
+            location: { lat: startCoords[0], lng: startCoords[1] },
+            speed: 0
+        }
     };
 
-    const response = await fetch('/trips', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(tripData)
-    });
-    currentTrip = await response.json();
+    try {
+        const response = await fetch('/trips', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(tripData)
+        });
+        currentTrip = await response.json();
 
-    if (initialMarker) {
-        driverMap.removeLayer(initialMarker);
+        if (initialMarker) driverMap.removeLayer(initialMarker);
         initialMarker = null;
-    }
 
-    document.getElementById('trip-form').style.display = 'none';
-    document.getElementById('trip-controls').style.display = 'block';
+        document.getElementById('trip-form').style.display = 'none';
+        document.getElementById('trip-controls').style.display = 'block';
 
-    // Get destination coordinates for the route
-    const destRes = await fetch(`https://nominatim.openstreetmap.org/search?q=${tripData.destination}&format=json&limit=1`);
-    const destData = await destRes.json();
-    if (destData.length === 0) {
-        alert("Destino não encontrado!");
-        return;
-    }
-    const destCoords = [parseFloat(destData[0].lat), parseFloat(destData[0].lon)];
+        const destRes = await fetch(`https://nominatim.openstreetmap.org/search?q=${tripData.destination}&format=json&limit=1`);
+        const destData = await destRes.json();
+        const destCoords = destData.length > 0 ? [parseFloat(destData[0].lat), parseFloat(destData[0].lon)] : startCoords;
 
-    navigator.geolocation.getCurrentPosition(pos => {
-        const startCoords = [pos.coords.latitude, pos.coords.longitude];
+        if (routingControl) driverMap.removeControl(routingControl);
 
-        // Clear previous routing if it exists
-        if (routingControl) {
-            driverMap.removeControl(routingControl);
-        }
-
-        // Display route on driver's map
         routingControl = L.Routing.control({
-            waypoints: [
-                L.latLng(startCoords[0], startCoords[1]),
-                L.latLng(destCoords[0], destCoords[1])
-            ],
-            routeWhileDragging: false,
+            waypoints: [L.latLng(startCoords[0], startCoords[1]), L.latLng(destCoords[0], destCoords[1])],
             addWaypoints: false,
-            draggableWaypoints: false,
-            fitSelectedRoutes: true,
-            showAlternatives: false,
-            // Hide the itinerary panel
+            routeWhileDragging: false,
             itinerary: L.DomUtil.create('div', 'hidden'),
-            // Hide the route line initially, if desired, or style it
-            lineOptions: {
-                styles: [{ color: 'red', opacity: 0.8, weight: 6 }]
-            }
         }).addTo(driverMap);
 
-        // Start simulation
-        simulateTrip(startCoords, destCoords, currentTrip.busNumber);
-    });
-});
+        startRealTimeTracking(currentTrip.busNumber);
+
+    } catch (error) {
+        console.error("Failed to start trip:", error);
+        locationStatus.textContent = "Falha ao iniciar a viagem. Verifique a conexão.";
+    }
+}
 
 document.getElementById('end-trip').addEventListener('click', async () => {
-    if (simulationInterval) clearInterval(simulationInterval);
+    if (watchId) {
+        navigator.geolocation.clearWatch(watchId);
+        watchId = null;
+    }
 
     await fetch(`/trips/${currentTrip.id}`, {
         method: 'PUT',
@@ -124,32 +140,23 @@ document.getElementById('end-trip').addEventListener('click', async () => {
         body: JSON.stringify({ observations: document.getElementById('observations').value })
     });
 
-    // Reset the UI
     document.getElementById('trip-form').style.display = 'block';
     document.getElementById('trip-controls').style.display = 'none';
     document.getElementById('trip-form').reset();
     document.getElementById('observations').value = '';
 
-    // Clear map elements
-    if (routingControl) {
-        driverMap.removeControl(routingControl);
-        routingControl = null;
-    }
-    if (simulationMarker) {
-        driverMap.removeLayer(simulationMarker);
-        simulationMarker = null;
-    }
+    if (routingControl) driverMap.removeControl(routingControl);
+    if (realTimeMarker) driverMap.removeLayer(realTimeMarker);
 
-    currentTrip = null;
-    simulationInterval = null;
+    routingControl = realTimeMarker = currentTrip = null;
 
-    // Re-enable initial location marker
-    if (navigator.geolocation) {
-        navigator.geolocation.getCurrentPosition(pos => {
-            driverMap.setView([pos.coords.latitude, pos.coords.longitude]);
-            initialMarker = L.marker([pos.coords.latitude, pos.coords.longitude]).addTo(driverMap).bindPopup("Você está aqui").openPopup();
-        });
-    }
-
-    alert('Viagem encerrada! Você pode iniciar uma nova viagem.');
+    locationStatus.textContent = 'Viagem encerrada! Aguardando nova localização inicial...';
+    startTripBtn.disabled = true;
+    navigator.geolocation.getCurrentPosition(pos => {
+        lastKnownPosition = pos;
+        driverMap.setView([pos.coords.latitude, pos.coords.longitude]);
+        initialMarker = L.marker([pos.coords.latitude, pos.coords.longitude]).addTo(driverMap).bindPopup("Você está aqui").openPopup();
+        locationStatus.textContent = 'Pronto para iniciar uma nova viagem!';
+        startTripBtn.disabled = false;
+    }, handleLocationError);
 });

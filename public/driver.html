@@ -2,7 +2,7 @@
 <html lang="pt-BR">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale-1.0">
     <title>Painel do Motorista - Rizzatti</title>
     <link rel="stylesheet" href="css/style.css">
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css" />
@@ -12,6 +12,7 @@
         <h1>Painel do Motorista</h1>
         <div id="driver-map"></div>
         <div class="trip-form-container">
+            <div id="location-status" class="status-message"></div>
             <form id="trip-form">
                 <input type="text" id="driver-name" placeholder="Nome do Motorista" required>
                 <select id="destination" required>
@@ -20,7 +21,7 @@
                     <option value="Recanto Maestro">Recanto Maestro</option>
                 </select>
                 <input type="text" id="bus-number" placeholder="Número do ônibus" required>
-                <button type="submit">Iniciar Viagem</button>
+                <button type="submit" id="start-trip-btn">Iniciar Viagem</button>
             </form>
             <div id="trip-controls" style="display: none;">
                 <textarea id="observations" class="fancy-textarea" placeholder="Adicione suas observações aqui..."></textarea>

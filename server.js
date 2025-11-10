@@ -3,13 +3,14 @@ const http = require('http');
 const socketIo = require('socket.io');
 const session = require('express-session');
 const fs = require('fs');
+const path = require('path');
 
 const app = express();
 const server = http.createServer(app);
 const io = socketIo(server);
 
 const PORT = process.env.PORT || 3000;
-const TRIPS_FILE = './trips.json';
+const TRIPS_FILE = path.join(__dirname, 'trips.json');
 
 app.use(session({
     secret: 'mysecret',
@@ -19,44 +20,43 @@ app.use(session({
 app.use(express.static('public'));
 app.use(express.json());
 
-// Load trips from file on startup
 let trips = [];
 try {
-    const data = fs.readFileSync(TRIPS_FILE, 'utf8');
-    trips = JSON.parse(data);
+    if (fs.existsSync(TRIPS_FILE)) {
+        const data = fs.readFileSync(TRIPS_FILE, 'utf8');
+        if (data) trips = JSON.parse(data);
+    } else {
+        fs.writeFileSync(TRIPS_FILE, '[]', 'utf8');
+    }
 } catch (err) {
-    console.error("Could not read trips.json, starting with an empty list.", err);
-    trips = [];
+    console.error("Error initializing trips.json:", err);
 }
 
 const saveTripsToFile = () => {
     try {
-        fs.writeFileSync(TRIPS_FILE, JSON.stringify(trips, null, 2), 'utf8');
+        const data = JSON.stringify(trips, null, 2);
+        fs.writeFileSync(TRIPS_FILE, data, 'utf8');
+        console.log("Trips saved to file successfully.");
     } catch (err) {
-        console.error("Error writing to trips.json", err);
+        console.error("Failed to save trips to file:", err);
     }
 };
 
 let activeBuses = {};
+trips.forEach(trip => {
+    if (!trip.endTime) {
+        activeBuses[trip.busNumber] = trip;
+    }
+});
 
 const auth = (req, res, next) => {
-    if (req.session && req.session.user) {
-        return next();
-    } else {
-        return res.status(401).send('Unauthorized');
-    }
+    if (req.session && req.session.user) return next();
+    return res.status(401).send('Unauthorized');
 };
 
-app.get('/admin.html', auth, (req, res) => {
-    res.sendFile(__dirname + '/public/admin.html');
-});
+app.get('/admin.html', auth, (req, res) => res.sendFile(path.join(__dirname, 'public/admin.html')));
+app.get('/driver.html', auth, (req, res) => res.sendFile(path.join(__dirname, 'public/driver.html')));
 
-app.get('/driver.html', auth, (req, res) => {
-    res.sendFile(__dirname + '/public/driver.html');
-});
-
-
-// Routes
 app.post('/login', (req, res) => {
     const { email, password } = req.body;
     if (email === 'adm@hotmail.com' && password === 'adm123') {
@@ -71,10 +71,7 @@ app.post('/login', (req, res) => {
 });
 
 app.get('/logout', (req, res) => {
-    req.session.destroy((err) => {
-        if (err) {
-            return res.redirect('/driver.html');
-        }
+    req.session.destroy(() => {
         res.clearCookie('connect.sid');
         res.redirect('/');
     });
@@ -83,11 +80,17 @@ app.get('/logout', (req, res) => {
 app.post('/trips', (req, res) => {
     const trip = req.body;
     trip.id = Date.now();
-    trip.startTime = new Date().toLocaleTimeString();
-    trip.locations = []; // Ensure locations array exists
+    trip.startTime = new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+
+    trip.locations = [];
+    if (trip.initialLocation) {
+        trip.locations.push(trip.initialLocation);
+        delete trip.initialLocation;
+    }
+
     trips.push(trip);
-    saveTripsToFile();
     activeBuses[trip.busNumber] = { ...trip };
+    saveTripsToFile();
     res.status(201).json(trip);
 });
 
@@ -96,16 +99,12 @@ app.put('/trips/:id', (req, res) => {
     const { observations } = req.body;
     const tripIndex = trips.findIndex(t => t.id == id);
     if (tripIndex !== -1) {
-        const trip = trips[tripIndex];
-        trip.observations = observations;
-        trip.endTime = new Date().toLocaleTimeString();
-        if (activeBuses[trip.busNumber]) {
-            trip.locations = activeBuses[trip.busNumber].locations;
-            delete activeBuses[trip.busNumber];
-        }
+        trips[tripIndex].observations = observations;
+        trips[tripIndex].endTime = new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+        delete activeBuses[trips[tripIndex].busNumber];
         saveTripsToFile();
-        io.emit('tripEnded', trip.busNumber);
-        res.json(trip);
+        io.emit('tripEnded', trips[tripIndex].busNumber);
+        res.json(trips[tripIndex]);
     } else {
         res.status(404).send('Trip not found');
     }
@@ -113,59 +112,34 @@ app.put('/trips/:id', (req, res) => {
 
 app.get('/trips', (req, res) => {
     const { date } = req.query;
-    if (date) {
-        const filteredTrips = trips.filter(t => t.date === date);
-        res.json(filteredTrips);
-    } else {
-        res.json(trips);
-    }
+    res.json(date ? trips.filter(t => t.date === date) : trips);
 });
 
 app.get('/trips/:id', (req, res) => {
-    const { id } = req.params;
-    const trip = trips.find(t => t.id == id);
-    if (trip) {
-        res.json(trip);
-    } else {
-        res.status(404).send('Trip not found');
-    }
+    const trip = trips.find(t => t.id == req.params.id);
+    if (trip) res.json(trip);
+    else res.status(404).send('Trip not found');
 });
 
 app.delete('/trips/:id', (req, res) => {
-    const { id } = req.params;
-    trips = trips.filter(t => t.id != id);
+    trips = trips.filter(t => t.id != req.params.id);
     saveTripsToFile();
     res.status(204).send();
 });
 
-
-// Socket.io connection
 io.on('connection', (socket) => {
-    console.log('a user connected');
-
     socket.on('locationUpdate', (data) => {
         const { busNumber, location, speed } = data;
-        if (activeBuses[busNumber]) {
-            if (!activeBuses[busNumber].locations) {
-                activeBuses[busNumber].locations = [];
-            }
-            activeBuses[busNumber].locations.push({ location, speed });
-            activeBuses[busNumber].speed = speed;
-            io.emit('busLocationUpdate', {
-                busNumber,
-                location,
-                speed,
-                driverName: activeBuses[busNumber].driverName,
-                destination: activeBuses[busNumber].destination
-            });
+        const trip = trips.find(t => t.busNumber === busNumber && !t.endTime);
+        if (trip) {
+            trip.locations.push({ location, speed });
+            trip.speed = speed;
+            saveTripsToFile();
+            io.emit('busLocationUpdate', { busNumber, location, speed, ...trip });
         }
-    });
-
-    socket.on('disconnect', () => {
-        console.log('user disconnected');
     });
 });
 
 server.listen(PORT, '0.0.0.0', () => {
-    console.log(`Server running on port ${PORT} and available on the local network.`);
+    console.log(`Server running on port ${PORT}.`);
 });
