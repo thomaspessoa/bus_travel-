@@ -9,7 +9,7 @@ const app = express();
 const server = http.createServer(app);
 const io = socketIo(server);
 
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 8080;
 const TRIPS_FILE = path.join(__dirname, 'trips.json');
 
 app.use(session({
