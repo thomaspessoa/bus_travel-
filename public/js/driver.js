@@ -27,25 +27,32 @@ locationStatus.textContent = 'Preencha os dados e clique em "Iniciar Viagem" par
 setFormDisabled(false); // Enable form by default
 
 function handleLocationError(error) {
-    let message = 'Ocorreu um erro desconhecido.';
+    let message = 'Ocorreu um erro desconhecido ao obter a localização.';
     switch(error.code) {
         case error.PERMISSION_DENIED:
-            message = "Você negou o acesso à localização. Por favor, habilite nas configurações do seu navegador.";
+            message = "Acesso à localização negado. Habilite a permissão nas configurações do seu navegador.";
             break;
         case error.POSITION_UNAVAILABLE:
-            message = "As informações de localização não estão disponíveis.";
+            message = "Informações de localização indisponíveis. Verifique o sinal do GPS.";
             break;
         case error.TIMEOUT:
-            message = "A solicitação para obter a localização expirou.";
+            message = "Tempo para obter localização esgotado. Tente novamente em um local com melhor sinal.";
             break;
     }
-    locationStatus.textContent = message;
-    console.error("Geolocation error:", message);
+    locationStatus.textContent = `Erro: ${message}`;
+    locationStatus.style.color = '#d44a5a'; // Make error messages stand out
+    console.error("Geolocation error:", error);
     setFormDisabled(false);
 }
 
 function startRealTimeTracking(busNumber) {
     if (watchId) navigator.geolocation.clearWatch(watchId);
+
+    const watchOptions = {
+        enableHighAccuracy: true,
+        timeout: 20000, // Increased timeout to 20 seconds for better mobile performance
+        maximumAge: 0
+    };
 
     watchId = navigator.geolocation.watchPosition(
         (pos) => {
@@ -55,15 +62,22 @@ function startRealTimeTracking(busNumber) {
 
             socket.emit('locationUpdate', { busNumber, location, speed: speedKmh });
 
-            if (realTimeMarker) realTimeMarker.setLatLng([latitude, longitude]);
-            else {
-                realTimeMarker = L.marker([latitude, longitude]).addTo(driverMap);
+            if (realTimeMarker) {
+                realTimeMarker.setLatLng([latitude, longitude]);
+            } else {
+                const busIcon = L.icon({
+                    iconUrl: 'https://img.icons8.com/color/48/000000/bus.png',
+                    iconSize: [38, 38],
+                });
+                realTimeMarker = L.marker([latitude, longitude], { icon: busIcon }).addTo(driverMap);
             }
             realTimeMarker.bindPopup(`Velocidade: ${speedKmh} km/h`).openPopup();
+
             locationStatus.textContent = 'Rastreamento em tempo real ativo.';
+            locationStatus.style.color = '#555'; // Reset color on success
         },
         handleLocationError,
-        { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+        watchOptions
     );
 }
 

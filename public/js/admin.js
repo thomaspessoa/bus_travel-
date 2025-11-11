@@ -31,6 +31,24 @@ socket.on('tripEnded', (busNumber) => {
     fetchTrips();
 });
 
+socket.on('tripStarted', (trip) => {
+    const { busNumber, driverName, destination, speed = 0, locations } = trip;
+    activeBuses[busNumber] = { driverName, speed, destination };
+    updateActiveBusesList();
+
+    if (locations && locations.length > 0) {
+        const lastLocation = locations[locations.length - 1].location;
+        const busIcon = L.divIcon({
+            html: `<span>${busNumber}</span><img src="https://img.icons8.com/color/48/000000/bus.png" alt="bus"/>`,
+            className: 'bus-icon'
+        });
+        if (!busMarkers[busNumber]) {
+            busMarkers[busNumber] = L.marker([lastLocation.lat, lastLocation.lng], { icon: busIcon }).addTo(map);
+        }
+        busMarkers[busNumber].bindPopup(`Ônibus ${busNumber}<br>Motorista: ${driverName}<br>Velocidade: ${speed} km/h`);
+    }
+    fetchTrips();
+});
 
 async function fetchTrips(date = '') {
     await new Promise(resolve => setTimeout(resolve, 500));
@@ -167,5 +185,40 @@ function updateActiveBusesList() {
     }
 }
 
+async function initializeActiveBuses() {
+    try {
+        const response = await fetch('/trips');
+        const trips = await response.json();
 
-fetchTrips();
+        trips.forEach(trip => {
+            if (!trip.endTime) {
+                // This trip is active
+                activeBuses[trip.busNumber] = {
+                    driverName: trip.driverName,
+                    speed: trip.speed || 0,
+                    destination: trip.destination
+                };
+
+                if (trip.locations && trip.locations.length > 0) {
+                    const lastLocation = trip.locations[trip.locations.length - 1].location;
+                    const busIcon = L.divIcon({
+                        html: `<span>${trip.busNumber}</span><img src="https://img.icons8.com/color/48/000000/bus.png" alt="bus"/>`,
+                        className: 'bus-icon'
+                    });
+                    if (!busMarkers[trip.busNumber]) {
+                        busMarkers[trip.busNumber] = L.marker([lastLocation.lat, lastLocation.lng], { icon: busIcon }).addTo(map);
+                    }
+                    busMarkers[trip.busNumber].bindPopup(`Ônibus ${trip.busNumber}<br>Motorista: ${trip.driverName}<br>Velocidade: ${trip.speed || 0} km/h`);
+                }
+            }
+        });
+        updateActiveBusesList(); // This was the missing call
+    } catch (error) {
+        console.error("Failed to initialize active buses:", error);
+    }
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+    fetchTrips();
+    initializeActiveBuses();
+});

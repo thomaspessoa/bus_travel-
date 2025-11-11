@@ -1,4 +1,5 @@
 const express = require('express');
+const https = require('https');
 const http = require('http');
 const socketIo = require('socket.io');
 const session = require('express-session');
@@ -6,7 +7,13 @@ const fs = require('fs');
 const path = require('path');
 
 const app = express();
-const server = http.createServer(app);
+
+const sslOptions = {
+    key: fs.readFileSync('key.pem'),
+    cert: fs.readFileSync('cert.pem')
+};
+
+const server = https.createServer(sslOptions, app);
 const io = socketIo(server);
 
 const PORT = process.env.PORT || 8080;
@@ -36,7 +43,6 @@ const saveTripsToFile = () => {
     try {
         const data = JSON.stringify(trips, null, 2);
         fs.writeFileSync(TRIPS_FILE, data, 'utf8');
-        console.log("Trips saved to file successfully.");
     } catch (err) {
         console.error("Failed to save trips to file:", err);
     }
@@ -91,6 +97,7 @@ app.post('/trips', (req, res) => {
     trips.push(trip);
     activeBuses[trip.busNumber] = { ...trip };
     saveTripsToFile();
+    io.emit('tripStarted', trip); // Notify all clients
     res.status(201).json(trip);
 });
 
@@ -141,5 +148,5 @@ io.on('connection', (socket) => {
 });
 
 server.listen(PORT, '0.0.0.0', () => {
-    console.log(`Server running on port ${PORT}.`);
+    console.log(`Server running on https://0.0.0.0:${PORT}.`);
 });
